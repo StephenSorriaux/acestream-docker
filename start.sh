@@ -38,36 +38,37 @@ function parse_args
 function extract_if_needed
 {
   temp_file=$1
+  extract_file=$2
   if file --mime-type "$temp_file" | grep -q zip$; then
     echo "unziping file..."
-    su -ls "/bin/bash" -c "unzip $temp_file" ace
+    unzip $temp_file -d $extract_file
   elif file --mime-type "$temp_file" | grep -q gzip$; then
-    su -ls "/bin/bash" -c "tar xvf $temp_file" ace
+    tar xvf $temp_file -C $extract_file
   else
-    su -ls "/bin/bash" -c "cp -p $temp_file ." ace
+    cp -p $temp_file $extract_file
   fi
 }
 
 parse_args "$@"
-groupmod -g $gid ace
-usermod -u $uid -g $gid ace
 
-if [ -d /home/ace/.config ]; then
-  chown -R ace:ace /home/ace/.config
+# Start the first process
+nohup /usr/bin/acestreamengine --bind-all --client-console &
+status=$?
+if [ $status -ne 0 ]; then
+  echo "Failed to start acestreamengine: $status"
+  exit $status
 fi
 
-/usr/bin/supervisord
-
 if [ ! -z $torrent_url ]; then
-  su -ls "/bin/bash" -c "mkdir /tmp/torrent/ && wget --directory-prefix=/tmp/torrent/ $torrent_url" ace
-  extract_if_needed "/tmp/torrent/$(ls /tmp/torrent/)"
-  torent_file="/home/ace/$(ls /home/ace | grep torrent$)"
+  mkdir -p /tmp/torrent/ /tmp/vlc/ && wget --directory-prefix=/tmp/torrent/ $torrent_url
+  extract_if_needed "/tmp/torrent/$(ls /tmp/torrent/)" "/tmp/vlc/"
+  torent_file="/tmp/vlc/$(ls /tmp/vlc | grep torrent$)"
 fi
 
 if [ ! -z $subtitle_url ]; then
-  su -ls "/bin/bash" -c "mkdir /tmp/subtitle/ && wget --directory-prefix=/tmp/subtitle/ $subtitle_url" ace
-  extract_if_needed "/tmp/subtitle/$(ls /tmp/subtitle/)"
-  subtitles="--sub-file /home/ace/$(ls /home/ace | grep srt$)"
+  mkdir -p /tmp/subtitle/ /tmp/vlc && wget --directory-prefix=/tmp/subtitle/ $subtitle_url
+  extract_if_needed "/tmp/subtitle/$(ls /tmp/subtitle/)" "/tmp/vlc"
+  subtitles="--sub-file /tmp/vlc/$(ls /tmp/vlc | grep srt$)"
 fi
 
 # Wait until acestream engine started and listens on port.
@@ -76,5 +77,10 @@ while [ -z "`netstat -tln | grep 62062`" ]; do
   sleep 1
 done
 echo 'Acestream engine started'
-echo "mkdir -p /home/ace/.local/share; /usr/bin/acestreamplayer $subtitles $torent_file $acestream_url"
-su -ls "/bin/bash" -c "mkdir -p /home/ace/.local/share; /usr/bin/acestreamplayer $subtitles $torent_file $acestream_url" ace
+
+/usr/bin/acestreamplayer $subtitles $torent_file $acestream_url
+status=$?
+if [ $status -ne 0 ]; then
+  echo "Failed to start acestreamplayer: $status"
+  exit $status
+fi

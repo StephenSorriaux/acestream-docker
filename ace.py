@@ -19,5 +19,5 @@ for key,value in vars(args).iteritems():
     if value is not None:
         parameters += " --%s '%s'" % (key.replace("_","-"),value)
 
-p = subprocess.Popen("/usr/bin/docker run -v /dev/snd:/dev/snd --privileged -v /tmp/.X11-unix:/tmp/.X11-unix -e uid=$(id -u) -e gid=$(id -g) -e DISPLAY=unix$DISPLAY --rm ssorriaux/acestreamplayer %s" % parameters,shell=True).wait()
+p = subprocess.Popen("/usr/bin/docker run -u $(id -u):$(id -g) -v $HOME:$HOME -v /tmp/.X11-unix:/tmp/.X11-unix -v $XAUTHORITY:/tmp/xauth -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro -e HOME -e PYTHON_EGG_CACHE=/tmp/.python-eggs -e DISPLAY=unix$DISPLAY -e XAUTHORITY=/tmp/xauth --device /dev/dri --device /dev/snd --group-add audio --group-add video --rm ssorriaux/acestreamplayer %s" % parameters,shell=True).wait()
 exit(p)
